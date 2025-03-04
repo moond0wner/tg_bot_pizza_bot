@@ -91,6 +91,7 @@ async def get_cart_product(user_id: int):
         return cart.all()
 
 
+# TODO: Доработать, так как функция будет удалять из всех заказов товар айди которого совпадает с заданным
 async def delete_product_from_cart(user_id: int, product_id: int):
     async with session_maker() as session:
         cart = await session.scalar(select(Cart).where(Cart.product_id == product_id))
