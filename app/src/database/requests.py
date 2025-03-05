@@ -93,6 +93,6 @@ async def get_cart_product(user_id: int):
 
 async def delete_product_from_cart(user_id: int, product_id: int):
     async with session_maker() as session:
-        cart = await session.scalar(select(Cart).where(Cart.product_id == product_id))
-        await session.delete(cart)
+        query = await session.scalar(select(Cart).where(Cart.user_id == user_id, Cart.product_id == product_id))
+        await session.delete(query)
         await session.commit()

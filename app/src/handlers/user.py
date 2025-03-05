@@ -2,7 +2,9 @@ import os
 from typing import Union
 
 from aiogram import Router, F, Bot
-from aiogram.types import Message, CallbackQuery, InputMediaPhoto, FSInputFile
+from aiogram.enums import ContentType
+from aiogram.types import Message, CallbackQuery, InputMediaPhoto, FSInputFile, LabeledPrice, PreCheckoutQuery, \
+    SuccessfulPayment
 from aiogram.filters import CommandStart
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
@@ -167,6 +169,7 @@ async def _(callback: CallbackQuery, state: FSMContext):
 @user.callback_query(F.data == 'cart')
 async def display_cart(callback: CallbackQuery, state: FSMContext):
     await update_cart_message(callback, state)
+
 
 async def update_cart_message(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
@@ -344,10 +347,35 @@ async def display_order_confirmation(message: Message, state: FSMContext):
 
 
 @user.callback_query(F.data == 'confirm order')
-async def _(callback: CallbackQuery):
-    await callback.answer()
-    await callback.message.edit_text("<i>Отлично, переходим к оплате...</i> 💸", reply_markup=None,
-                                  parse_mode='HTML')
+async def _(callback: CallbackQuery, bot: Bot, state: FSMContext):
+    data = await state.get_data()
+    await callback.answer("Отлично, переходим к оплате... 💸")
+    await bot.send_invoice(chat_id=callback.from_user.id,
+                           title='Оплата заказа в пиццерии',
+                           description='Оплатите заказ',
+                           provider_token=os.getenv('PAY_TOKEN'),
+                           is_flexible=False,
+                           currency='RUB',
+                           prices=[LabeledPrice(label='Оплата заказа', amount=int(data['payment']) * 100)],
+                           start_parameter='pay_order',
+                           payload=f'order_{callback.from_user.id}'
+                           ) # 4242 4242 4242 4242
+
+@user.pre_checkout_query()
+async def _(pre_checkout_query: PreCheckoutQuery):
+    await pre_checkout_query.answer(ok=True)
+
+
+@user.message(F.content_type == ContentType.SUCCESSFUL_PAYMENT)
+async def _(message: Message):
+    payment_info = message.successful_payment
+    await message.answer("Оплата прошла успешно ✅\nСтатус своего заказа вы можете посмотреть в главном меню.")
+
+    # Дополнительный код:
+    # 1. Добавить в меню кнопку просмотра статуса
+    # 2. Отсылать заказ после оплаты в чат
+    # 3. Сохранять информацию о транзакции в БД.
+
 
 
 @user.callback_query(F.data == 'cancel order')
