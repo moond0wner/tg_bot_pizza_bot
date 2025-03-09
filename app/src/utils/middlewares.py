@@ -1,42 +1,16 @@
-import logging
-
 from typing import Callable, Awaitable, Dict, Any
-
 
 from aiogram import BaseMiddleware
 from aiogram.types import Message, CallbackQuery, TelegramObject
 from cachetools import TTLCache
-from sqlalchemy import select
 
-
-from ..database.models import User
-from ..database.engine import session_maker
-
-
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
-
-class LoggingMiddleware(BaseMiddleware):
-    """Считывает каждое взаимодействие пользователей с ботом и обрабатывает ошибки"""
-    async def __call__(
-            self,
-            handler: Callable[[Message, Dict[str, Any]], Awaitable[Any]],
-            event: Message | CallbackQuery,
-            data: Dict[str, Any]
-    ) -> Any:
-        logger.info(f'User "{event.from_user.username}" ({event.from_user.id}) '
-                    f'отправил: {event.text if isinstance(event, Message) else event.data}')
-
-        try:
-            return await handler(event, data)
-        except Exception as e:
-            logger.exception(f"Возникла ошибка при обработке {event.from_user.id}: {e}")
-            raise e
-
+from ..database.requests import is_user_exists, add_user
+from .logger import Logger
 
 class UserMiddleware(BaseMiddleware):
-    """Проверяет находиться ли пользователь в базе данных, если нет то добавляет"""
+    """
+    Проверяет находиться ли пользователь в базе данных, если нет то добавляет
+    """
 
     async def __call__(
             self,
@@ -44,24 +18,13 @@ class UserMiddleware(BaseMiddleware):
             event: Message,
             data: Dict[str, Any]
     ) -> Any:
-        async with session_maker() as session:
-            user = await session.scalar(select(User).where(User.telegram_id == event.from_user.id))
-            try:
-                if not user:
-                    user = User(
-                        telegram_id=event.from_user.id,
-                        name=event.from_user.full_name,
-                        username=event.from_user.username,
-                        phone='не указан'
-                    )
-                    session.add(user)
-                    await session.commit()
+        if not await is_user_exists(event.from_user.id):
+            await add_user(user_id=event.from_user.id, name=event.from_user.full_name,
+                           username=event.from_user.username)
 
-                data['user'] = user
-                return await handler(event, data)
+            Logger.info(f'Пользователь {event.from_user.id} успешно зарегистрирован!')
 
-            except Exception as e:
-                raise e
+        return await handler(event, data)
 
 
 

@@ -34,6 +34,7 @@ class DeleteCategory(StatesGroup):
 
 class DeleteProduct(StatesGroup):
     product_name = State()
+    category_id = State()
 
 class AddProduct(StatesGroup):
     name = State()
@@ -41,7 +42,6 @@ class AddProduct(StatesGroup):
     price = State()
     category_id = State()
     photo = State()
-
 
 
 # Старт
@@ -65,7 +65,6 @@ async def start(event: Union[Message, CallbackQuery]):
             reply_markup=await get_inline_buttons(btns=buttons),
             parse_mode='HTML'
         )
-
 
 
 
@@ -100,13 +99,15 @@ async def _(callback: CallbackQuery):
 @admin.callback_query(F.data == 'list category')
 async def _(callback: CallbackQuery):
     categories = await get_categories()
+    print(categories, type(categories))
     if categories:
         await callback.answer()
-        result = '\n'.join(f'{index, category.name}' for index, category in enumerate(categories, start=1)) # исправить
+        result = '\n'.join(f'{index}. {category['name']}' for index, category in enumerate(categories, start=1))
         await callback.message.edit_text(f'Список категорий: <b>\n{result}</b>', parse_mode='HTML',
                                          reply_markup=await get_inline_buttons(btns={'Отмена': 'to main admin'}))
     else:
         await callback.answer("Категории отсутствуют ❗")
+
 
 # Добавление категории
 @admin.callback_query(F.data == 'new category')
@@ -114,6 +115,7 @@ async def _(callback: CallbackQuery, state: FSMContext):
     await state.set_state(AddCategory.name)
     await callback.answer()
     await callback.message.answer("<i>Введите название категории...</i>", parse_mode='HTML')
+
 
 @admin.message(AddCategory.name, F.text)
 async def _(message: Message, state: FSMContext):
@@ -125,13 +127,15 @@ async def _(message: Message, state: FSMContext):
         await message.answer(f"<i>Произошла ошибка: {e}</i>", parse_mode='HTML')
         raise e
 
+
+
 # Изменение категории
 @admin.callback_query(F.data == 'change category')
 async def _(callback: CallbackQuery, state: FSMContext):
     categories = await get_categories()
     if categories:
         await callback.answer()
-        categories_buttons = {category.name: f'change_category_{category.id}' for category in categories}
+        categories_buttons = {category["name"]: f'change_category_{category["id"]}' for category in categories}
         await state.set_state(ChangeCategory.category_id)
         await callback.message.answer("<b>Выберите категорию которую хотите изменить</b>",
                              reply_markup=await get_inline_buttons(btns=categories_buttons),
@@ -164,19 +168,19 @@ async def _(message: Message, state: FSMContext):
         await state.clear()
         raise e
 
+
 # Удаление категории
 @admin.callback_query(F.data == 'delete category')
 async def _(callback: CallbackQuery):
     categories = await get_categories()
     if categories:
         await callback.answer()
-        categories_buttons = {category.name: f'delete_category_{category.id}' for category in categories}
+        categories_buttons = {category['name']: f'delete_category_{category['id']}' for category in categories}
         await callback.message.answer("<b>Выберите категорию которую хотите удалить</b>",
                              reply_markup=await get_inline_buttons(btns=categories_buttons),
                              parse_mode='HTML')
     else:
         await callback.answer("<i>Список категорий отсутствует, добавьте хотя бы одну категорию</i>", parse_mode='HTML')
-
 
 
 @admin.callback_query(F.data.startswith('delete_category_'))
@@ -193,14 +197,13 @@ async def _(callback: CallbackQuery):
         raise e
 
 
-
 # Список товаров
 @admin.callback_query(F.data == 'list product')
 async def _(callback: CallbackQuery):
     categories = await get_categories()
     if categories:
         await callback.answer()
-        categories_buttons = {category.name: f'items_category_{category.id}' for category in categories}
+        categories_buttons = {category['name']: f'items_category_{category['id']}' for category in categories}
         await callback.message.answer(
             "<b>Выберите категорию товаров</b>",
             reply_markup=await get_inline_buttons(btns=categories_buttons),
@@ -216,11 +219,10 @@ async def _(callback: CallbackQuery):
     products = await get_products(data)
     await callback.answer()
     if products:
-        result = '\n'.join(f'Название: {product.name}\nОписание: {product.description}\nЦена: {product.price}' for product in products)
+        result = '\n'.join(f'Название: {product['name']}\nОписание: {product['description']}\nЦена: {product['price']}' for product in products)
         await callback.message.answer(f"<b>Список товаров:</b> \n{result}", parse_mode='HTML')
     else:
         await callback.answer("<i>Список товаров отсутствует, добавьте хотя бы один товар</i>", parse_mode='HTML')
-
 
 
 # Добавление товара
@@ -229,7 +231,7 @@ async def _(callback: CallbackQuery, state: FSMContext):
     categories = await get_categories()
     if categories:
         await callback.answer()
-        categories_buttons = {category.name: f'choose_category:{category.id}' for category in categories}
+        categories_buttons = {category['name']: f'choose_category:{category['id']}' for category in categories}
         await state.set_state(AddProduct.category_id)
         await callback.message.edit_text("<b>Выберите категорию в которую хотите добавить товар</b>",
                              reply_markup=await get_inline_buttons(btns=categories_buttons),
@@ -289,7 +291,7 @@ async def _(message: Message, state: FSMContext, bot: Bot):
         des = data.get('description', 'N/A')
         price = data.get('price', 'N/A')
         cat_id = data.get("category_id", 'N/A')
-        await create_product(name, des, price, cat_id, photo_path)
+        await create_product(name, des, int(price), int(cat_id), photo_path)
         answer = (
             f'Был успешно добавлен товар "{name}"\n'
             f'Описание: {des}\n'
@@ -304,18 +306,21 @@ async def _(message: Message, state: FSMContext, bot: Bot):
         await state.clear()
         raise e
 
+
 @admin.message(AddProduct.photo)
 async def _(message: Message, state: FSMContext):
     await message.answer("Вы отправили неверные данные, попробуйте заново")
     await get_photo(message, state)
 
+
 # Удаление товара
 @admin.callback_query(F.data == 'delete product')
-async def _(callback: CallbackQuery):
+async def _(callback: CallbackQuery, state: FSMContext):
     categories = await get_categories()
     if categories:
         await callback.answer()
-        categories_buttons = {category.name: f'choose_category_{category.id}' for category in categories}
+        await state.set_state(DeleteProduct.category_id)
+        categories_buttons = {category['name']: f'choose_category_{category['id']}' for category in categories}
         await callback.message.edit_text(
             "<b>Выберите категорию товара</b>",
             reply_markup=await get_inline_buttons(btns=categories_buttons),
@@ -324,25 +329,30 @@ async def _(callback: CallbackQuery):
     else:
         await callback.answer("<i>Список категорий отсутствует, добавьте хотя бы одну категорию</i>", parse_mode='HTML')
 
-@admin.callback_query(F.data.startswith('choose_category_'))
-async def _(callback: CallbackQuery):
+
+@admin.callback_query(DeleteProduct.category_id, F.data.startswith('choose_category_'))
+async def _(callback: CallbackQuery, state: FSMContext):
     category_id = callback.data.split('_')[-1]
+    await state.update_data(category_id=int(category_id))
     products = await get_products(category_id)
     if products:
-        products_buttons = {product.name: f'delete_product_{product.id}' for product in products}
+        products_buttons = {product['name']: f'delete_product_{product['id']}' for product in products}
         await callback.message.answer("<b>Выберите товар который хотите удалить</b>",
                              reply_markup=await get_inline_buttons(btns=products_buttons)
                              )
     else:
         await callback.answer("Список категорий отсутствует, добавьте хотя бы одну категорию")
 
+
 @admin.callback_query(F.data.startswith('delete_product_'))
-async def _(callback: CallbackQuery):
+async def _(callback: CallbackQuery, state: FSMContext):
     product_id = callback.data.split('_')[-1]
+    data = await state.get_data()
+    category_id = data.get('category_id')
     product = await get_product(product_id)
     try:
-        await delete_product(product_id)
-        await callback.message.answer(f'<b>Товар "{product.name}" успешно удалён</b>', parse_mode='HTML',
+        await delete_product(product_id, category_id)
+        await callback.message.answer(f'<b>Товар "{product['name']}" успешно удалён</b>', parse_mode='HTML',
                                       reply_markup=await get_inline_buttons(btns={'На главную': 'to main admin'}))
     except Exception as e:
         await callback.message.answer("<i>В ходе удаления товара возникла ошибка, обратитесь к разработчику</i>",

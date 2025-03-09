@@ -1,6 +1,6 @@
 <div align="center">
   <h1>🍕 Пет-проект Telegram-бот для пиццерии 🍕</h1>
-  <h2>🛠️ Stack: Python, Aiogram, SQLAlchemy, aiosqlite (sqlite3) 🛠️</h2>
+  <h2>🛠️ Stack: Python, Aiogram, SQLAlchemy, PostgreSQL, Redis 🛠️</h2>
 </div>
 
 <br>

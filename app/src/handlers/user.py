@@ -12,7 +12,7 @@ from aiogram.fsm.context import FSMContext
 from ..utils.keyboard_builder import (get_inline_buttons, get_products_pagination,
                                       get_delivery_options_keyboard, get_confirm_order)
 from ..database.requests import (get_categories, get_products, get_product,
-                                 add_to_cart, get_cart_product, delete_product_from_cart)
+                                 add_product_to_cart, get_cart_product, delete_product_from_cart)
 
 
 user = Router()
@@ -134,7 +134,7 @@ async def _(callback: CallbackQuery, state: FSMContext, bot: Bot):
 @user.callback_query(F.data.startswith('product_'))
 async def _(callback: CallbackQuery):
     data = callback.data.split('_')[1]
-    await add_to_cart(callback.from_user.id, data)
+    await add_product_to_cart(callback.from_user.id, data)
     await callback.answer("Товар добавлен в корзину ✅")
 
 
@@ -360,6 +360,7 @@ async def _(callback: CallbackQuery, bot: Bot, state: FSMContext):
                            start_parameter='pay_order',
                            payload=f'order_{callback.from_user.id}'
                            ) # 4242 4242 4242 4242
+
 
 @user.pre_checkout_query()
 async def _(pre_checkout_query: PreCheckoutQuery):
